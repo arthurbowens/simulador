@@ -22,7 +22,7 @@ describe('dados', () => {
       for (const [y, list] of Object.entries(p.years)) {
         if (p.id === 'br-a' && Number(y) < 2006) continue;
         if (p.id === 'br-c' && Number(y) === 2027) {
-          expect(list.length).toBe(23); // provisória: falta o 4º rebaixado da Série B 2026
+          expect(list.length).toBe(24); // Série C passa a ter 24 clubes em 2027
           continue;
         }
         expect(list.length, `${p.id} ${y}`).toBe(20);

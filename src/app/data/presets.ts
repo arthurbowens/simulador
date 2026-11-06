@@ -87,9 +87,8 @@ const BR_C = years({
   2024: 'vre ath fer rem bpb sbc ypi lon nau csa fig tom con abc cax flo sam apa frv sjo',
   2025: 'pon lon nau sbc cax bru gua flo con ypi mga itu bpb fig ana ita csa abc ret tom',
   2026: 'mga fer stc inl bru bpb flo pay ypi gua fig mra ama cax itu vre brr ana ita con',
-  // 2027 (provisório): 3 rebaixados da B 2026 já definidos + 6 acessos da D + 14 que permaneceram;
-  // o 4º rebaixado da Série B 2026 ainda não está definido
-  2027: 'amg lon pon abc asa gam goa nac ube ama ana brr bpb bru cax fig flo gua itu mra pay vre ypi',
+  // 2027: 4 rebaixados da B 2026 + 6 acessos da D + 14 que permaneceram (24 clubes)
+  2027: 'amg lon pon ava abc asa gam goa nac ube ama ana brr bpb bru cax fig flo gua itu mra pay vre ypi',
 });
 
 export const PRESETS: Preset[] = [
@@ -154,7 +153,7 @@ export const PRESETS: Preset[] = [
     groupMode: 'potes',
     note: (y) =>
       y === 2027
-        ? 'Série C 2027 provisória: 23 clubes já definidos — falta o 4º rebaixado da Série B 2026 (adicione-o na lista ao lado quando sair). O regulamento de 2027 (24 clubes) ainda não foi aplicado: aqui é turno único e os 8 primeiros vão ao mata-mata. A força usa o momento atual dos times.'
+        ? 'Série C 2027 com 24 clubes. O regulamento de 2027 ainda não foi aplicado: aqui é turno único e os 8 primeiros vão ao mata-mata (ajuste abaixo se quiser). A força usa o momento atual dos times.'
         : y >= 2022
         ? 'Fase única com 20 times em turno único; os 8 primeiros vão ao mata-mata (quartas, semi e final em ida e volta). Na vida real a 2ª fase é em dois quadrangulares — os 4 semifinalistas equivalem aos 4 que sobem.'
         : y >= 2020
