@@ -6,7 +6,7 @@ import { champion, progress, resetChamp, simAll, tm } from '../../core/engine';
 import { Badge } from '../../shared/shared';
 import { ConfigView, GroupsView, KoView, LeagueView, ProbView, TeamsView } from './views';
 
-type Tab = 'jogos' | 'prob' | 'grupos' | 'chave' | 'times' | 'config';
+type Tab = 'jogos' | 'prob' | 'grupos' | 'quad' | 'chave' | 'times' | 'config';
 
 @Component({
   selector: 'app-champ-page',
@@ -51,6 +51,7 @@ type Tab = 'jogos' | 'prob' | 'grupos' | 'chave' | 'times' | 'config';
         @case ('jogos') { <app-league-view [champ]="c" /> }
         @case ('prob') { <app-prob-view [champ]="c" /> }
         @case ('grupos') { <app-groups-view [champ]="c" /> }
+        @case ('quad') { <app-groups-view [champ]="c" [quad]="true" /> }
         @case ('chave') { <app-ko-view [champ]="c" /> }
         @case ('times') { <app-teams-view [champ]="c" /> }
         @case ('config') { <app-config-view [champ]="c" (deleted)="remove(c)" /> }
@@ -76,8 +77,10 @@ export class ChampPage {
     ];
     if (c.format === 'liga') return [['jogos', 'Tabela & jogos'], ['prob', 'Probabilidades'], ...common];
     if (c.format === 'mata') return [['chave', 'Chaveamento'], ...common];
-    if (c.format === 'ligamata') return [['jogos', '1ª fase'], ['chave', 'Mata-mata'], ...common];
-    return [['grupos', 'Fase de grupos'], ['chave', 'Mata-mata'], ...common];
+    const quad = c.settings.second === 'quad';
+    const first: [Tab, string] = c.format === 'ligamata' ? ['jogos', '1ª fase'] : ['grupos', quad ? '1ª fase' : 'Fase de grupos'];
+    if (quad) return [first, ['quad', '2ª fase'], ['chave', 'Final'], ...common];
+    return [first, ['chave', 'Mata-mata'], ...common];
   }
 
   tab(c: Champ): Tab {

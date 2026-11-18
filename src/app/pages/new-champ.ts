@@ -130,7 +130,7 @@ import { Badge } from '../shared/shared';
                 </select>
               </label>
               <label>
-                Classificados ao mata-mata
+                Classificados à 2ª fase
                 <select [(ngModel)]="d.settings.qualify">
                   @for (q of [2, 4, 8, 16]; track q) {
                     <option [ngValue]="q">{{ q }}</option>
@@ -167,9 +167,18 @@ import { Badge } from '../shared/shared';
               </label>
             }
           }
+          @if (d.format === 'ligamata' || d.format === 'grupos') {
+            <label>
+              2ª fase
+              <select [(ngModel)]="d.settings.second">
+                <option value="mata">Mata-mata</option>
+                <option value="quad">Quadrangulares + final (8 times)</option>
+              </select>
+            </label>
+          }
           @if (d.format !== 'liga') {
             <label>
-              Confrontos do mata-mata
+              {{ d.settings.second === 'quad' && d.format !== 'mata' ? 'Final' : 'Confrontos do mata-mata' }}
               <select [(ngModel)]="d.settings.legs">
                 <option [ngValue]="1">Jogo único</option>
                 <option [ngValue]="2">Ida e volta</option>
@@ -393,6 +402,13 @@ export class NewChampPage {
         return `Total de classificados (${G * s.qualify}) precisa ser 2, 4, 8, 16 ou 32.`;
       }
     }
+    const quad = s.second === 'quad' && (this.d.format === 'ligamata' || this.d.format === 'grupos');
+    if (quad && this.d.format === 'ligamata' && s.qualify !== 8) {
+      return 'Quadrangulares precisam de exatamente 8 classificados na 1ª fase.';
+    }
+    if (quad && this.d.format === 'grupos' && (Number(s.groups) !== 2 || s.qualify !== 4)) {
+      return 'Quadrangulares a partir de grupos precisam de 2 grupos com 4 classificados cada.';
+    }
     if (this.d.format === 'ligamata') {
       if (!isPow2(s.qualify) || s.qualify > n) return `Classificados ao mata-mata (${s.qualify}) deve ser 2, 4, 8 ou 16 e no máximo ${n}.`;
       if (s.qualify + s.releg > n) return 'Classificados + rebaixados somam mais que o número de times.';
@@ -412,7 +428,7 @@ export class NewChampPage {
     }
     if (this.d.format === 'ligamata') {
       const rodadas = (n % 2 ? n : n - 1) * this.d.settings.turnos;
-      return `${n} times · ${rodadas} rodadas na 1ª fase · ${this.d.settings.qualify} no mata-mata`;
+      return `${n} times · ${rodadas} rodadas na 1ª fase · ${this.d.settings.qualify} ${this.d.settings.second === 'quad' ? 'nos quadrangulares' : 'no mata-mata'}`;
     }
     if (this.d.format === 'grupos') {
       return `${n} times · ${this.d.settings.groups} grupos de ${n / this.d.settings.groups} · ${this.d.settings.groups * this.d.settings.qualify} no mata-mata`;

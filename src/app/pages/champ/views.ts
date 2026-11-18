@@ -1,6 +1,6 @@
 import { Component, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Champ, ChampTeam } from '../../core/models';
+import { Champ, ChampTeam, Group } from '../../core/models';
 import { Store } from '../../core/store';
 import {
   ProbRow,
@@ -43,9 +43,9 @@ import { Badge, MatchRow, Standings } from '../../shared/shared';
             <span><i class="lz rel"></i>Rebaixamento</span>
           }
           @if (c.format === 'ligamata' && R.flat().length && !leagueOver()) {
-            <span class="muted">Ao fim da 1ª fase os {{ c.settings.qualify }} primeiros vão ao mata-mata.</span>
+            <span class="muted">Ao fim da 1ª fase os {{ c.settings.qualify }} primeiros vão {{ c.settings.second === 'quad' ? 'aos quadrangulares' : 'ao mata-mata' }}.</span>
           }
-          <span class="muted">Desempate: pontos, vitórias, saldo, gols pró</span>
+          <span class="muted">Desempate: pontos, vitórias, saldo, gols pró, confronto direto</span>
         </div>
       </div>
       <div class="card">
@@ -223,58 +223,78 @@ export class ProbView {
   }
 }
 
-// ======================= Fase de grupos =======================
+// ======================= Fase de grupos / quadrangulares =======================
 @Component({
   selector: 'app-groups-view',
   imports: [Standings, MatchRow],
   template: `
     @let c = champ();
-    <div class="row wrap actions">
-      <button class="btn" (click)="simGroups()">🎲 Simular fase de grupos</button>
-      @if (!anyPlayed()) {
-        <button class="btn btn-ghost" (click)="redraw()">🔀 Sortear grupos novamente</button>
-      }
-      <span class="hint">Os {{ c.settings.qualify }} primeiros de cada grupo avançam.</span>
-    </div>
-    <div class="groups">
-      @for (g of c.groups!; track $index; let gi = $index) {
-        <div class="card group">
-          <h3>{{ g.name }}</h3>
-          <app-standings [champ]="c" [rows]="table(gi)" mode="group" [qualify]="c.settings.qualify" />
-          <div class="g-matches">
-            @for (ms of g.rounds; track $index; let r = $index) {
-              <div class="g-round">Rodada {{ r + 1 }}</div>
-              @for (m of ms; track $index) {
-                <app-match [champ]="c" [match]="m" [compact]="true" />
+    @if (!list().length) {
+      <div class="card empty">
+        Os quadrangulares começam quando todos os jogos da 1ª fase tiverem placar.
+      </div>
+    } @else {
+      <div class="row wrap actions">
+        <button class="btn" (click)="simGroups()">🎲 Simular {{ quad() ? '2ª fase' : 'fase de grupos' }}</button>
+        @if (!quad() && !anyPlayed()) {
+          <button class="btn btn-ghost" (click)="redraw()">🔀 Sortear grupos novamente</button>
+        }
+        <span class="hint">
+          @if (quad()) {
+            Ida e volta dentro do grupo. Os 2 primeiros de cada grupo sobem; os líderes decidem o título
+            na final (decide em casa quem tiver a melhor campanha).
+          } @else {
+            Os {{ c.settings.qualify }} primeiros de cada grupo avançam.
+          }
+        </span>
+      </div>
+      <div class="groups">
+        @for (g of list(); track $index; let gi = $index) {
+          <div class="card group">
+            <h3>{{ g.name }}</h3>
+            <app-standings [champ]="c" [rows]="table(gi)" mode="group" [qualify]="quad() ? 2 : c.settings.qualify" />
+            <div class="g-matches">
+              @for (ms of g.rounds; track $index; let r = $index) {
+                <div class="g-round">Rodada {{ r + 1 }}</div>
+                @for (m of ms; track $index) {
+                  <app-match [champ]="c" [match]="m" [compact]="true" />
+                }
               }
-            }
+            </div>
           </div>
-        </div>
-      }
-    </div>
+        }
+      </div>
+    }
   `,
 })
 export class GroupsView {
   private readonly store = inject(Store);
   readonly champ = input.required<Champ>();
+  /** true = mostra os quadrangulares da 2ª fase em vez dos grupos da 1ª */
+  readonly quad = input(false);
 
+  list(): Group[] {
+    const c = this.champ();
+    return (this.quad() ? c.quad : c.groups) ?? [];
+  }
   table(gi: number) {
     const c = this.champ();
-    const g = c.groups![gi];
+    const g = this.list()[gi];
     return standings(c, g.teams, g.rounds.flat());
   }
   anyPlayed() {
-    return this.champ().groups!.some((g) => g.rounds.flat().some(isPlayed));
+    return this.list().some((g) => g.rounds.flat().some(isPlayed));
   }
   simGroups() {
     const c = this.champ();
-    for (const g of c.groups!) simList(c, g.rounds.flat());
+    for (const g of this.list()) simList(c, g.rounds.flat());
     this.store.commit(c);
   }
   redraw() {
     const c = this.champ();
     c.groups = makeGroups(c, shuffle(c.teams.map((t) => t.id)), 'potes');
     c.ko = { rounds: [] };
+    delete c.quad;
     this.store.commit(c);
   }
 }
@@ -288,7 +308,11 @@ export class GroupsView {
     @let R = c.ko!.rounds;
     @if (!R.length) {
       <div class="card empty">
-        O mata-mata começa quando todos os jogos da {{ c.format === 'grupos' ? 'fase de grupos' : '1ª fase' }} tiverem placar.
+        @if (c.settings.second === 'quad') {
+          A final começa quando todos os jogos dos quadrangulares tiverem placar.
+        } @else {
+          O mata-mata começa quando todos os jogos da {{ c.format === 'grupos' ? 'fase de grupos' : '1ª fase' }} tiverem placar.
+        }
       </div>
     } @else {
       <div class="row wrap actions">
@@ -537,10 +561,14 @@ export class ConfigView {
     if (c.format === 'liga') return `pontos corridos, ${s.turnos === 2 ? 'turno e returno' : 'turno único'}`;
     const ko = `mata-mata em ${s.legs === 2 ? 'ida e volta' : 'jogo único'}${s.finalSingle ? ', final única' : ''}`;
     if (c.format === 'mata') return ko;
+    const second =
+      s.second === 'quad'
+        ? `quadrangulares em ida e volta (2 sobem por grupo) + final ${s.finalSingle ? 'única' : 'em ida e volta'}`
+        : ko;
     if (c.format === 'ligamata') {
-      return `pontos corridos (${s.turnos === 2 ? 'turno e returno' : 'turno único'}), ${s.qualify} classificados + ${ko}`;
+      return `pontos corridos (${s.turnos === 2 ? 'turno e returno' : 'turno único'}), ${s.qualify} classificados + ${second}`;
     }
-    return `${s.groups} grupos (${s.qualify} classificados cada) + ${ko}`;
+    return `${s.groups} grupos (${s.qualify} classificados cada) + ${second}`;
   }
   regen() {
     if (!confirm('Gerar uma nova tabela? Todos os resultados deste campeonato serão apagados.')) return;

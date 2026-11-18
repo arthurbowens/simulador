@@ -97,17 +97,62 @@ export function roundRobin(ids: string[], turnos: number): Match[][] {
       const x = t[i];
       const y = t[n - 1 - i];
       if (x == null || y == null) continue;
-      const flip = i === 0 ? r % 2 === 1 : (i + r) % 2 === 1;
+      // tabela de Berger: o time fixo alterna por rodada; os demais alternam porque
+      // trocam de posição a cada rodada (máx. 2 jogos seguidos com o mesmo mando)
+      const flip = i === 0 ? r % 2 === 1 : i % 2 === 1;
       ms.push(flip ? { h: y, a: x, hg: null, ag: null } : { h: x, a: y, hg: null, ag: null });
     }
     first.push(ms);
     t.splice(1, 0, t.pop()!);
   }
-  const rounds = first.slice();
-  if (turnos === 2) {
-    for (const ms of first) rounds.push(ms.map((m) => ({ h: m.a, a: m.h, hg: null, ag: null })));
+  const mirror = (turno: Match[][]) =>
+    turno.map((ms) => ms.map((m) => ({ h: m.a, a: m.h, hg: null, ag: null })));
+  if (turnos !== 2) return first;
+  // o returno espelha o turno com mando invertido; escolhe a ordem (rotação) das rodadas
+  // do turno que evita 3 jogos seguidos com o mesmo mando na virada turno/returno
+  // (grupos pequenos, como quadrangulares, podem reordenar também as rodadas do returno)
+  let best: Match[][] = [];
+  let bestStreak = Infinity;
+  const returnoOrders = first.length <= 5 ? permutations(first.length) : [first.map((_, i) => i)];
+  for (let k = 0; k < first.length && bestStreak > 2; k++) {
+    const turno = [...first.slice(k), ...first.slice(0, k)];
+    const volta = mirror(turno);
+    for (const order of returnoOrders) {
+      const all = [...turno, ...order.map((i) => volta[i])];
+      const streak = maxStreak(all, ids);
+      if (streak < bestStreak) {
+        best = all;
+        bestStreak = streak;
+        if (streak <= 2) break;
+      }
+    }
   }
-  return rounds;
+  return best;
+}
+
+function permutations(n: number): number[][] {
+  if (n === 0) return [[]];
+  return permutations(n - 1).flatMap((p) =>
+    Array.from({ length: n }, (_, i) => [...p.slice(0, i), n - 1, ...p.slice(i)]),
+  );
+}
+
+/** Maior sequência de jogos seguidos com o mesmo mando, considerando todos os times. */
+function maxStreak(rounds: Match[][], ids: string[]): number {
+  let worst = 0;
+  for (const id of ids) {
+    let run = 0;
+    let last = '';
+    for (const ms of rounds) {
+      const m = ms.find((x) => x.h === id || x.a === id);
+      if (!m) continue;
+      const side = m.h === id ? 'H' : 'A';
+      run = side === last ? run + 1 : 1;
+      last = side;
+      worst = Math.max(worst, run);
+    }
+  }
+  return worst;
 }
 
 export function standings(c: Champ, ids: string[], matches: Match[]): Row[] {
@@ -153,14 +198,47 @@ export function standings(c: Champ, ids: string[], matches: Match[]): Row[] {
     r.sg = r.gp - r.gc;
     r.last = r.last.slice(-5);
   }
-  return arr.sort(
-    (x, y) =>
-      y.p - x.p ||
-      y.v - x.v ||
-      y.sg - x.sg ||
-      y.gp - x.gp ||
-      tm(c, x.id).name.localeCompare(tm(c, y.id).name),
-  );
+  // critérios da CBF: pontos, vitórias, saldo, gols pró, confronto direto (só entre 2 clubes).
+  // Cartões não são simulados; o último critério (sorteio) vira ordem alfabética.
+  const base = (x: Row, y: Row) => y.p - x.p || y.v - x.v || y.sg - x.sg || y.gp - x.gp;
+  arr.sort((x, y) => base(x, y) || tm(c, x.id).name.localeCompare(tm(c, y.id).name));
+  for (let i = 0; i < arr.length - 1; i++) {
+    const a = arr[i];
+    const b = arr[i + 1];
+    if (base(a, b) !== 0) continue;
+    if ((i > 0 && base(arr[i - 1], a) === 0) || (i + 2 < arr.length && base(b, arr[i + 2]) === 0)) continue;
+    const [pa, pb, ga, gb] = headToHead(matches, a.id, b.id);
+    if (pb > pa || (pb === pa && gb - ga > ga - gb)) {
+      arr[i] = b;
+      arr[i + 1] = a;
+    }
+  }
+  return arr;
+}
+
+/** Pontos e gols de A e B nos jogos entre eles. */
+function headToHead(matches: Match[], a: string, b: string): [number, number, number, number] {
+  let pa = 0;
+  let pb = 0;
+  let ga = 0;
+  let gb = 0;
+  for (const m of matches) {
+    if (!isPlayed(m)) continue;
+    let x: number;
+    let y: number;
+    if (m.h === a && m.a === b) [x, y] = [m.hg!, m.ag!];
+    else if (m.h === b && m.a === a) [x, y] = [m.ag!, m.hg!];
+    else continue;
+    ga += x;
+    gb += y;
+    if (x > y) pa += 3;
+    else if (y > x) pb += 3;
+    else {
+      pa++;
+      pb++;
+    }
+  }
+  return [pa, pb, ga, gb];
 }
 
 export function zoneOf(c: Champ, pos: number, n: number): string {
@@ -323,6 +401,7 @@ export function initStructure(c: Champ, groupMode: GroupMode = 'potes') {
   const ids = c.teams.map((t) => t.id);
   delete c.league;
   delete c.groups;
+  delete c.quad;
   delete c.ko;
   if (c.format === 'liga' || c.format === 'ligamata') {
     c.league = { rounds: roundRobin(ids, c.settings.turnos) };
@@ -338,7 +417,68 @@ export function initStructure(c: Champ, groupMode: GroupMode = 'potes') {
 /** Recalcula confrontos, classificados e próximas fases após qualquer alteração. */
 export const leagueDone = (c: Champ) => !!c.league && c.league.rounds.flat().every(isPlayed);
 
+const usesQuad = (c: Champ) =>
+  c.settings.second === 'quad' && (c.format === 'ligamata' || c.format === 'grupos');
+
+const phase1Done = (c: Champ) => (c.format === 'ligamata' ? leagueDone(c) : groupsDone(c));
+
+const phase1Matches = (c: Champ): Match[] =>
+  c.format === 'ligamata' ? c.league!.rounds.flat() : c.groups!.flatMap((g) => g.rounds.flat());
+
+/**
+ * Composição real dos quadrangulares da Série C:
+ * - fase única (2022+): 1º, 4º, 5º, 8º × 2º, 3º, 6º, 7º
+ * - dois grupos (2020–21): 1º e 3º do A + 2º e 4º do B × 2º e 4º do A + 1º e 3º do B
+ */
+function quadComposition(c: Champ): Group[] {
+  let a: string[];
+  let b: string[];
+  let names: [string, string];
+  if (c.format === 'ligamata') {
+    const q = standings(c, c.teams.map((t) => t.id), c.league!.rounds.flat()).map((r) => r.id);
+    a = [q[0], q[3], q[4], q[7]];
+    b = [q[1], q[2], q[5], q[6]];
+    names = ['Grupo B', 'Grupo C'];
+  } else {
+    const [A, B] = c.groups!.map((g) => standings(c, g.teams, g.rounds.flat()).map((r) => r.id));
+    a = [A[0], A[2], B[1], B[3]];
+    b = [A[1], A[3], B[0], B[2]];
+    names = ['Grupo C', 'Grupo D'];
+  }
+  return [a, b].map((teams, i) => ({ name: names[i], teams, rounds: [] }));
+}
+
+export const quadDone = (c: Champ) => !!c.quad && c.quad.every((g) => g.rounds.flat().every(isPlayed));
+
+function syncQuad(c: Champ) {
+  if (!phase1Done(c)) {
+    delete c.quad;
+    c.ko!.rounds = [];
+    return;
+  }
+  const comp = quadComposition(c);
+  if (!c.quad || c.quad.some((g, i) => g.teams.join() !== comp[i].teams.join())) {
+    c.quad = comp.map((g) => ({ ...g, rounds: roundRobin(g.teams, 2) }));
+    c.ko!.rounds = [];
+  }
+  if (!quadDone(c)) {
+    c.ko!.rounds = [];
+    return;
+  }
+  // final: líderes dos quadrangulares; decide em casa quem tem a melhor campanha (1ª + 2ª fase)
+  const w = c.quad.map((g) => standings(c, g.teams, g.rounds.flat())[0].id);
+  const all = [...phase1Matches(c), ...c.quad.flatMap((g) => g.rounds.flat())];
+  const [better, other] = standings(c, w, all).map((r) => r.id);
+  const pairs: [string, string][] = [[better, other]];
+  if (!c.ko!.rounds[0] || pairsDiffer(c.ko!.rounds[0], pairs)) c.ko!.rounds = [buildRound(c, pairs)];
+}
+
 export function sync(c: Champ) {
+  if (usesQuad(c) && c.ko) {
+    syncQuad(c);
+    syncKO(c);
+    return;
+  }
   if (c.format === 'ligamata' && c.ko) {
     if (leagueDone(c)) {
       const top = standings(c, c.teams.map((t) => t.id), c.league!.rounds.flat())
@@ -378,14 +518,24 @@ export function simKoPhase(c: Champ) {
   }
 }
 
+export function allMatches(c: Champ): Match[] {
+  return [
+    ...(c.league?.rounds.flat() ?? []),
+    ...(c.groups?.flatMap((g) => g.rounds.flat()) ?? []),
+    ...(c.quad?.flatMap((g) => g.rounds.flat()) ?? []),
+    ...(c.ko?.rounds.flatMap((r) => r.ties.flatMap((t) => t.legs)) ?? []),
+  ];
+}
+
+/** Simula fase após fase até sair o campeão. */
 export function simAll(c: Champ) {
-  if (c.league) simList(c, c.league.rounds.flat());
-  if (c.groups) for (const g of c.groups) simList(c, g.rounds.flat());
-  if (c.ko) {
+  for (let guard = 0; guard < 30; guard++) {
     sync(c);
-    let guard = 0;
-    while (!champion(c) && c.ko.rounds.length && guard++ < 20) simKoPhase(c);
+    const pending = allMatches(c).filter((m) => !isPlayed(m));
+    if (!pending.length) break;
+    simList(c, pending);
   }
+  sync(c);
 }
 
 export function resetChamp(c: Champ) {
@@ -400,6 +550,7 @@ export function resetChamp(c: Champ) {
     c.ko = { rounds: [] };
   }
   if (c.format === 'ligamata') c.ko = { rounds: [] };
+  delete c.quad;
   if (c.format === 'mata') {
     c.ko = { rounds: [buildRound(c, c.ko!.rounds[0].ties.map((t) => [t.a, t.b]))] };
   }
@@ -415,7 +566,13 @@ export function progress(c: Champ): number {
     });
   if (c.league) count(c.league.rounds.flat());
   if (c.groups) c.groups.forEach((g) => count(g.rounds.flat()));
-  if (c.ko) {
+  if (c.ko && usesQuad(c)) {
+    if (c.quad) c.quad.forEach((g) => count(g.rounds.flat()));
+    else total += 24; // 2 grupos de 4 em ida e volta
+    const finalLegs = c.settings.finalSingle ? 1 : c.settings.legs;
+    if (c.ko.rounds[0]) count(c.ko.rounds[0].ties.flatMap((t) => t.legs));
+    else total += finalLegs;
+  } else if (c.ko) {
     let size =
       c.format === 'grupos'
         ? c.settings.groups * c.settings.qualify
@@ -442,6 +599,7 @@ export function getMatch(c: Champ, key: string): Match | undefined {
   const n = rest.map(Number);
   if (kind === 'L') return c.league?.rounds[n[0]]?.[n[1]];
   if (kind === 'G') return c.groups?.[n[0]]?.rounds[n[1]]?.[n[2]];
+  if (kind === 'Q') return c.quad?.[n[0]]?.rounds[n[1]]?.[n[2]];
   if (kind === 'K') return c.ko?.rounds[n[0]]?.ties[n[1]]?.legs[n[2]];
   return undefined;
 }

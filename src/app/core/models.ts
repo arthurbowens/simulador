@@ -69,7 +69,11 @@ export interface Settings {
   groups: number;
   groupTurnos: number;
   qualify: number;
+  /** formato da fase seguinte à 1ª fase (ligamata/grupos): mata-mata ou quadrangulares + final */
+  second?: SecondPhase;
 }
+
+export type SecondPhase = 'mata' | 'quad';
 
 export type Format = 'liga' | 'ligamata' | 'mata' | 'grupos';
 export type GroupMode = 'potes' | 'ordem';
@@ -85,6 +89,8 @@ export interface Champ {
   teams: ChampTeam[];
   league?: { rounds: Match[][] };
   groups?: Group[];
+  /** 2ª fase em quadrangulares (2 grupos de 4, ida e volta) */
+  quad?: Group[];
   ko?: { rounds: KoRound[] };
   createdAt: number;
   updatedAt: number;
@@ -123,5 +129,6 @@ export function defaultSettings(): Settings {
     groups: 4,
     groupTurnos: 1,
     qualify: 2,
+    second: 'mata',
   };
 }

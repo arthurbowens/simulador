@@ -136,8 +136,10 @@ export const PRESETS: Preset[] = [
     settings: (y) =>
       y >= 2022
         ? {
+            // fase única em turno único; 8 primeiros aos quadrangulares
             turnos: 1,
             qualify: 8,
+            second: 'quad',
             legs: 2,
             finalSingle: false,
             releg: y === 2026 ? 2 : 4,
@@ -146,6 +148,8 @@ export const PRESETS: Preset[] = [
             groups: 2,
             groupTurnos: 2,
             qualify: 4,
+            // 2016–2019: quartas, semi e final em ida e volta; 2020–2021: quadrangulares
+            second: y >= 2020 ? 'quad' : 'mata',
             legs: 2,
             finalSingle: false,
           },
@@ -153,12 +157,12 @@ export const PRESETS: Preset[] = [
     groupMode: 'potes',
     note: (y) =>
       y === 2027
-        ? 'Série C 2027 com 24 clubes. O regulamento de 2027 ainda não foi aplicado: aqui é turno único e os 8 primeiros vão ao mata-mata (ajuste abaixo se quiser). A força usa o momento atual dos times.'
+        ? 'Série C 2027 com os 24 clubes confirmados. A CBF ainda não publicou o regulamento de 2027, então segue o modelo de 2022–2026: turno único, 8 primeiros aos quadrangulares (1º/4º/5º/8º e 2º/3º/6º/7º, ida e volta), 2 de cada grupo sobem e os líderes fazem a final em ida e volta. 4 rebaixados (ajustável). A força usa o momento atual dos times.'
         : y >= 2022
-        ? 'Fase única com 20 times em turno único; os 8 primeiros vão ao mata-mata (quartas, semi e final em ida e volta). Na vida real a 2ª fase é em dois quadrangulares — os 4 semifinalistas equivalem aos 4 que sobem.'
-        : y >= 2020
-          ? 'Dois grupos de 10 (ida e volta), 4 de cada avançam ao mata-mata em ida e volta. Na vida real a 2ª fase foi em quadrangulares; os grupos aqui são sorteados por força (no real eram regionais).'
-          : 'Dois grupos de 10 (ida e volta), 4 de cada avançam às quartas em ida e volta. Os grupos aqui são sorteados por força (no real eram regionais).',
+          ? 'Formato real: fase única em turno único; os 8 primeiros vão a dois quadrangulares (1º/4º/5º/8º e 2º/3º/6º/7º) em ida e volta; os 2 primeiros de cada grupo sobem e os líderes decidem o título na final em ida e volta.'
+          : y >= 2020
+            ? 'Formato real: dois grupos de 10 (ida e volta); os 4 primeiros de cada vão a dois quadrangulares (1º e 3º do A com 2º e 4º do B, e vice-versa) em ida e volta; 2 de cada sobem e os líderes fazem a final. Os grupos da 1ª fase aqui são sorteados por força (no real eram regionais).'
+            : 'Formato real: dois grupos de 10 (ida e volta); os 4 primeiros de cada vão às quartas, semi e final em ida e volta (os 4 semifinalistas sobem). Os grupos aqui são sorteados por força (no real eram regionais).',
   },
 ];
 

@@ -191,7 +191,10 @@ export class Store {
       updatedAt: now,
     };
     if (c.format === 'ligamata') {
-      c.settings.z1 = { name: 'Mata-mata', count: c.settings.qualify };
+      c.settings.z1 = {
+        name: c.settings.second === 'quad' ? '2ª fase (quadrangulares)' : 'Mata-mata',
+        count: c.settings.qualify,
+      };
       c.settings.z2 = { name: '', count: 0 };
     }
     initStructure(c, d.groupMode);
